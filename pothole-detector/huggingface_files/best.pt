@@ -1,0 +1,17 @@
+from ultralytics import YOLO
+from pathlib import Path
+import requests
+
+MODEL_URL = "https://huggingface.co/your-username/your-model-repo/resolve/main/best.pt"  # Replace with actual URL
+MODEL_PATH = "best.pt"
+
+# Download only if it doesn't exist
+if not Path(MODEL_PATH).exists():
+    print("Downloading model...")
+    r = requests.get(MODEL_URL)
+    with open(MODEL_PATH, "wb") as f:
+        f.write(r.content)
+    print("Download complete.")
+
+# Now load the model
+model = YOLO(MODEL_PATH)
