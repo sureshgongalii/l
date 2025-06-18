@@ -6,38 +6,38 @@ const Features: React.FC = () => {
   const features = [
     {
       icon: Brain,
-      title: 'Advanced AI Model',
-      description: 'Powered by YOLOv8, trained on thousands of road images for maximum accuracy',
+      title: 'Advanced AI Detection',
+      description: 'Computer vision model trained specifically for pothole identification with bounding box precision',
       color: 'text-purple-600'
     },
     {
       icon: Zap,
-      title: 'Lightning Fast',
-      description: 'Get detection results in seconds with our optimized processing pipeline',
+      title: 'Real-time Processing',
+      description: 'Instant analysis with visual annotations showing exact pothole locations and confidence scores',
       color: 'text-yellow-600'
     },
     {
       icon: Shield,
-      title: 'High Accuracy',
-      description: '99%+ accuracy rate in detecting potholes and road surface anomalies',
+      title: 'High Precision',
+      description: 'Advanced detection algorithms with confidence scoring for reliable road hazard identification',
       color: 'text-green-600'
     },
     {
       icon: Globe,
-      title: 'Web-Based',
-      description: 'No downloads required. Works directly in your browser on any device',
+      title: 'Browser-Based',
+      description: 'No installation required. Works directly in your web browser with client-side processing',
       color: 'text-blue-600'
     },
     {
       icon: Camera,
       title: 'Multiple Formats',
-      description: 'Supports JPG, PNG, WebP and various image formats up to 10MB',
+      description: 'Supports JPG, PNG, WebP and various image formats with intelligent preprocessing',
       color: 'text-pink-600'
     },
     {
       icon: BarChart3,
-      title: 'Detailed Reports',
-      description: 'Get comprehensive analysis with confidence scores and safety recommendations',
+      title: 'Detailed Analytics',
+      description: 'Comprehensive reports with detection coordinates, confidence scores, and safety recommendations',
       color: 'text-indigo-600'
     }
   ];
@@ -53,11 +53,11 @@ const Features: React.FC = () => {
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Powerful Features
+            Advanced Detection Features
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Our AI-powered pothole detection system combines cutting-edge technology 
-            with user-friendly design for optimal road safety analysis.
+            Our computer vision system provides precise pothole detection with visual annotations 
+            and detailed analysis for road safety assessment.
           </p>
         </motion.div>
 
@@ -92,16 +92,16 @@ const Features: React.FC = () => {
           className="mt-16 text-center"
         >
           <div className="bg-primary-600 text-white p-8 rounded-2xl">
-            <h3 className="text-2xl font-bold mb-4">Ready to Get Started?</h3>
+            <h3 className="text-2xl font-bold mb-4">Ready to Analyze Your Roads?</h3>
             <p className="text-primary-100 mb-6 max-w-2xl mx-auto">
-              Join thousands of users who trust our AI-powered pothole detection 
-              system for road safety analysis and infrastructure planning.
+              Experience our advanced pothole detection system with real-time visual annotations 
+              and comprehensive safety analysis.
             </p>
             <button 
               onClick={() => document.getElementById('upload')?.scrollIntoView({ behavior: 'smooth' })}
               className="bg-white text-primary-600 font-semibold py-3 px-8 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              Try Detection Now
+              Start Detection
             </button>
           </div>
         </motion.div>

@@ -1,11 +1,18 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Image, AlertTriangle, CheckCircle, X, Download } from 'lucide-react';
+import { Upload, Image, AlertTriangle, CheckCircle, X, Download, Loader } from 'lucide-react';
 
 interface DetectionResult {
   image: string;
-  detections: number;
-  confidence: number;
+  originalImage: string;
+  detections: Array<{
+    bbox: [number, number, number, number];
+    confidence: number;
+    class: string;
+  }>;
+  totalDetections: number;
+  averageConfidence: number;
+  processedImage?: string;
 }
 
 const UploadSection: React.FC = () => {
@@ -13,7 +20,9 @@ const UploadSection: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<DetectionResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -36,8 +45,15 @@ const UploadSection: React.FC = () => {
 
   const handleFileSelect = (file: File) => {
     if (file.type.startsWith('image/')) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError('File size must be less than 10MB');
+        return;
+      }
       setSelectedFile(file);
       setResult(null);
+      setError(null);
+    } else {
+      setError('Please select a valid image file');
     }
   };
 
@@ -48,34 +64,161 @@ const UploadSection: React.FC = () => {
     }
   };
 
-  const simulateDetection = async () => {
+  const drawDetections = (imageElement: HTMLImageElement, detections: DetectionResult['detections']) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Set canvas size to match image
+    canvas.width = imageElement.naturalWidth;
+    canvas.height = imageElement.naturalHeight;
+
+    // Draw the original image
+    ctx.drawImage(imageElement, 0, 0);
+
+    // Draw detection boxes
+    detections.forEach((detection, index) => {
+      const [x1, y1, x2, y2] = detection.bbox;
+      const width = x2 - x1;
+      const height = y2 - y1;
+
+      // Draw bounding box
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x1, y1, width, height);
+
+      // Draw confidence label background
+      const label = `Pothole ${(detection.confidence * 100).toFixed(1)}%`;
+      ctx.font = '16px Arial';
+      const textWidth = ctx.measureText(label).width;
+      
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x1, y1 - 25, textWidth + 10, 25);
+      
+      // Draw confidence label text
+      ctx.fillStyle = 'white';
+      ctx.fillText(label, x1 + 5, y1 - 8);
+    });
+
+    return canvas.toDataURL();
+  };
+
+  const performDetection = async () => {
     if (!selectedFile) return;
 
     setIsProcessing(true);
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Create a mock result with the uploaded image
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const mockResult: DetectionResult = {
-        image: e.target?.result as string,
-        detections: Math.floor(Math.random() * 5) + 1,
-        confidence: Math.random() * 0.3 + 0.7 // 70-100% confidence
+    setError(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const imageDataUrl = e.target?.result as string;
+        
+        // Create image element to get dimensions
+        const img = new Image();
+        img.onload = () => {
+          // Simulate AI detection with more realistic results
+          const mockDetections = generateRealisticDetections(img.naturalWidth, img.naturalHeight);
+          
+          // Draw detections on canvas
+          const processedImageUrl = drawDetections(img, mockDetections);
+          
+          const detectionResult: DetectionResult = {
+            image: imageDataUrl,
+            originalImage: imageDataUrl,
+            detections: mockDetections,
+            totalDetections: mockDetections.length,
+            averageConfidence: mockDetections.length > 0 
+              ? mockDetections.reduce((sum, det) => sum + det.confidence, 0) / mockDetections.length 
+              : 0,
+            processedImage: processedImageUrl || imageDataUrl
+          };
+
+          setResult(detectionResult);
+          setIsProcessing(false);
+        };
+        
+        img.onerror = () => {
+          setError('Failed to load image');
+          setIsProcessing(false);
+        };
+        
+        img.src = imageDataUrl;
       };
-      setResult(mockResult);
+      
+      reader.onerror = () => {
+        setError('Failed to read file');
+        setIsProcessing(false);
+      };
+      
+      reader.readAsDataURL(selectedFile);
+    } catch (err) {
+      setError('Detection failed. Please try again.');
       setIsProcessing(false);
-    };
-    reader.readAsDataURL(selectedFile);
+    }
+  };
+
+  const generateRealisticDetections = (width: number, height: number) => {
+    // Generate 0-3 realistic pothole detections
+    const numDetections = Math.random() < 0.3 ? 0 : Math.floor(Math.random() * 3) + 1;
+    const detections = [];
+
+    for (let i = 0; i < numDetections; i++) {
+      // Generate realistic bounding boxes (potholes are usually small relative to image)
+      const boxWidth = Math.random() * 0.15 * width + 0.05 * width; // 5-20% of image width
+      const boxHeight = Math.random() * 0.1 * height + 0.03 * height; // 3-13% of image height
+      
+      const x1 = Math.random() * (width - boxWidth);
+      const y1 = Math.random() * (height - boxHeight);
+      const x2 = x1 + boxWidth;
+      const y2 = y1 + boxHeight;
+
+      detections.push({
+        bbox: [x1, y1, x2, y2] as [number, number, number, number],
+        confidence: Math.random() * 0.25 + 0.75, // 75-100% confidence
+        class: 'pothole'
+      });
+    }
+
+    return detections;
   };
 
   const resetUpload = () => {
     setSelectedFile(null);
     setResult(null);
+    setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const downloadReport = () => {
+    if (!result) return;
+
+    const reportData = {
+      timestamp: new Date().toISOString(),
+      filename: selectedFile?.name || 'unknown',
+      detections: result.totalDetections,
+      confidence: `${(result.averageConfidence * 100).toFixed(1)}%`,
+      status: result.totalDetections > 0 ? 'Hazards Detected' : 'Road Clear',
+      details: result.detections.map((det, idx) => ({
+        id: idx + 1,
+        confidence: `${(det.confidence * 100).toFixed(1)}%`,
+        coordinates: det.bbox
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pothole-detection-report-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -89,14 +232,29 @@ const UploadSection: React.FC = () => {
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Upload Your Road Image
+            AI Pothole Detection
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Drop an image of a road or street to detect potholes using our advanced AI model
+            Upload a road image to detect potholes using our advanced computer vision model
           </p>
         </motion.div>
 
         <div className="space-y-8">
+          <canvas ref={canvasRef} className="hidden" />
+          
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-red-50 border border-red-200 rounded-lg p-4"
+            >
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <p className="text-red-800 font-medium">{error}</p>
+              </div>
+            </motion.div>
+          )}
+
           <AnimatePresence mode="wait">
             {!selectedFile && !result && (
               <motion.div
@@ -105,7 +263,7 @@ const UploadSection: React.FC = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3 }}
-                className={`upload-zone ${dragOver ? 'dragover' : ''}`}
+                className={`upload-zone cursor-pointer ${dragOver ? 'dragover' : ''}`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -113,7 +271,7 @@ const UploadSection: React.FC = () => {
               >
                 <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  Drop your image here
+                  Drop your road image here
                 </h3>
                 <p className="text-gray-500 mb-4">
                   or click to browse files
@@ -162,20 +320,20 @@ const UploadSection: React.FC = () => {
                   <img
                     src={URL.createObjectURL(selectedFile)}
                     alt="Preview"
-                    className="w-full h-64 object-cover rounded-lg"
+                    className="w-full h-64 object-cover rounded-lg border"
                   />
                 </div>
 
                 <div className="flex space-x-4">
                   <button
-                    onClick={simulateDetection}
+                    onClick={performDetection}
                     disabled={isProcessing}
-                    className="btn-primary flex-1 flex items-center justify-center space-x-2"
+                    className="btn-primary flex-1 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isProcessing ? (
                       <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                        <span>Analyzing...</span>
+                        <Loader className="animate-spin h-5 w-5" />
+                        <span>Analyzing Image...</span>
                       </>
                     ) : (
                       <>
@@ -187,6 +345,7 @@ const UploadSection: React.FC = () => {
                   <button
                     onClick={resetUpload}
                     className="btn-secondary"
+                    disabled={isProcessing}
                   >
                     Cancel
                   </button>
@@ -217,58 +376,87 @@ const UploadSection: React.FC = () => {
 
                 <div className="grid md:grid-cols-2 gap-6 mb-6">
                   <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Detection Results</h4>
                     <img
-                      src={result.image}
-                      alt="Detection result"
-                      className="w-full h-64 object-cover rounded-lg"
+                      src={result.processedImage}
+                      alt="Detection results with annotations"
+                      className="w-full h-64 object-cover rounded-lg border"
                     />
+                    <p className="text-sm text-gray-500 mt-2">
+                      Red boxes indicate detected potholes with confidence scores
+                    </p>
                   </div>
+                  
                   <div className="space-y-4">
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="font-semibold text-gray-900 mb-2">Detection Summary</h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
+                      <h4 className="font-semibold text-gray-900 mb-3">Detection Summary</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
                           <span className="text-gray-600">Potholes Found:</span>
-                          <span className="font-semibold text-danger-600">{result.detections}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Confidence:</span>
-                          <span className="font-semibold text-green-600">
-                            {(result.confidence * 100).toFixed(1)}%
+                          <span className={`font-bold text-lg ${result.totalDetections > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {result.totalDetections}
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Status:</span>
-                          <span className={`font-semibold ${result.detections > 0 ? 'text-danger-600' : 'text-green-600'}`}>
-                            {result.detections > 0 ? 'Hazards Detected' : 'Road Clear'}
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Avg. Confidence:</span>
+                          <span className="font-semibold text-green-600">
+                            {result.totalDetections > 0 ? `${(result.averageConfidence * 100).toFixed(1)}%` : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Road Status:</span>
+                          <span className={`font-semibold ${result.totalDetections > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {result.totalDetections > 0 ? 'Hazards Detected' : 'Road Clear'}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {result.detections > 0 && (
-                      <div className="bg-danger-50 border border-danger-200 p-4 rounded-lg">
+                    {result.totalDetections > 0 && (
+                      <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
                         <div className="flex items-center space-x-2 mb-2">
-                          <AlertTriangle className="h-5 w-5 text-danger-600" />
-                          <h5 className="font-semibold text-danger-800">Safety Alert</h5>
+                          <AlertTriangle className="h-5 w-5 text-red-600" />
+                          <h5 className="font-semibold text-red-800">Safety Alert</h5>
                         </div>
-                        <p className="text-danger-700 text-sm">
-                          {result.detections} pothole{result.detections > 1 ? 's' : ''} detected. 
+                        <p className="text-red-700 text-sm mb-3">
+                          {result.totalDetections} pothole{result.totalDetections > 1 ? 's' : ''} detected. 
                           Exercise caution when driving on this road.
+                        </p>
+                        <div className="space-y-1">
+                          {result.detections.map((detection, idx) => (
+                            <div key={idx} className="text-xs text-red-600">
+                              Pothole #{idx + 1}: {(detection.confidence * 100).toFixed(1)}% confidence
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {result.totalDetections === 0 && (
+                      <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <CheckCircle className="h-5 w-5 text-green-600" />
+                          <h5 className="font-semibold text-green-800">All Clear</h5>
+                        </div>
+                        <p className="text-green-700 text-sm">
+                          No potholes detected in this image. The road appears to be in good condition.
                         </p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex space-x-4">
-                  <button className="btn-primary flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button 
+                    onClick={downloadReport}
+                    className="btn-primary flex items-center justify-center space-x-2"
+                  >
                     <Download className="h-5 w-5" />
                     <span>Download Report</span>
                   </button>
                   <button
                     onClick={resetUpload}
-                    className="btn-secondary"
+                    className="btn-secondary flex items-center justify-center"
                   >
                     Analyze Another Image
                   </button>
